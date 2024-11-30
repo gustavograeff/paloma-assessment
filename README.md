@@ -18,6 +18,7 @@ npm run dev
 - Tailwind CSS: I opted for Tailwind for styling because it allows for rapid development by keeping styles within the component files (TSX), which streamlines the process.
 - clsx: This lightweight library makes toggling CSS classes easier and more readable.
 - Skeleton: I used Skeleton for better loading states, as it improves the user experience by visually indicating that data is being fetched.
+- react-icons/md: Material Design icons just to have some basics icons to use for account details.
 
 #### Is there anything you would improve if you had more time and resources?
 
