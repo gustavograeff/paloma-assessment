@@ -22,14 +22,18 @@ const TableTransactionsFilters = ({
   const initialCurrencyFilterOptions = useMemo(() => {
     if (!searchParams.currencies) return [];
 
-    return (JSON.parse(searchParams.currencies) as Currency[]).map(
-      (currency) => {
-        return {
-          id: currency,
-          label: currency,
-        };
-      }
-    );
+    try {
+      return (JSON.parse(searchParams.currencies) as Currency[]).map(
+        (currency) => {
+          return {
+            id: currency,
+            label: currency,
+          };
+        }
+      );
+    } catch {
+      return [];
+    }
   }, [searchParams.currencies]);
 
   const onFiltersChange = () => {
