@@ -299,9 +299,12 @@ export default function Home() {
                 ) : filteredTransactions.length === 0 ? (
                   <TableNoResultRow />
                 ) : (
-                  filteredTransactions.map((transaction) => {
+                  filteredTransactions.map((transaction, index) => {
                     return (
                       <TableTransactionRow
+                        noBorderBottom={
+                          index === filteredTransactions.length - 1
+                        }
                         key={transaction.transactionId}
                         transaction={transaction}
                       />
