@@ -52,7 +52,7 @@ const TableTransactionsFilters = ({
       );
     else searchParamsNew.delete("currencies");
 
-    router.push(`${pathName}?${searchParamsNew.toString()}`);
+    router.push(`${pathName}?${searchParamsNew.toString()}`, { scroll: false });
   };
 
   const debouncedFiltersChange = useDebounce(onFiltersChange);

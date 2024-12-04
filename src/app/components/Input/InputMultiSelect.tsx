@@ -52,9 +52,15 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
   };
 
   const removeOption = (optionId: string | number) => {
-    setSelectedOptions((prev) =>
-      prev.filter((selected) => selected.id !== optionId)
-    );
+    setSelectedOptions((prev) => {
+      const updatedOptions = prev.filter(
+        (selected) => selected.id !== optionId
+      );
+
+      onChangeOptions(updatedOptions);
+
+      return updatedOptions;
+    });
   };
 
   useEffect(() => {

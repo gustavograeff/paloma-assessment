@@ -16,8 +16,9 @@ const useWebSocket = () => {
 
     wsRef.current = new WebSocket(url);
 
+    setIsLoading(true);
+
     wsRef.current.onopen = () => {
-      setIsLoading(true);
       setIsOpen(true);
     };
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { Account, AccountResponse } from "@/types/account";
-import { Transaction } from "@/types/transaction";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ChangeEventHandler,
@@ -43,13 +42,10 @@ export default function Home() {
 
   const [isFetchingAccounts, setIsFetchingAccounts] = useState(true);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [isWebsocketConnectionPaused, setIsWebsocketConnectionPaused] =
-    useState(false);
 
   const fetchAccountsErrorMessageRef = useRef<AccountResponse["error"]>(null);
   const accountInputRef = useRef<HTMLSelectElement | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const alreadyShownTransactions = useRef<Transaction[]>([]);
 
   const selectedAccount = useMemo(() => {
     return accounts.find(
@@ -69,11 +65,7 @@ export default function Home() {
   const filteredTransactions = useMemo(() => {
     const { max, min, currencies } = searchParams;
 
-    return (
-      isWebsocketConnectionPaused
-        ? alreadyShownTransactions.current
-        : transactions
-    ).filter((message) => {
+    return transactions.filter((message) => {
       if (min) if (message.amount < parseFloat(min)) return false;
 
       if (max) if (message.amount > parseFloat(max)) return false;
@@ -82,7 +74,7 @@ export default function Home() {
 
       return true;
     });
-  }, [isWebsocketConnectionPaused, transactions, searchParams]);
+  }, [transactions, searchParams]);
 
   const fetchAccounts = useCallback(async (): Promise<AccountResponse> => {
     const response = await fetch(`${apiUrl}/accounts`, {
@@ -91,6 +83,8 @@ export default function Home() {
 
     return await response.json();
   }, [abortController]);
+
+  const accountChanged = useRef(false);
 
   const populateAccountsState = useCallback(async () => {
     try {
@@ -141,11 +135,6 @@ export default function Home() {
   }, [abortReset, populateAccountsState]);
 
   useEffect(() => {
-    if (searchParams.accountId) setIsWebsocketConnectionPaused(false);
-    else setIsWebsocketConnectionPaused(true);
-  }, [searchParams.accountId]);
-
-  useEffect(() => {
     if (!searchParams.accountId) {
       ws?.close(1000, "Closing old connection");
       if (accountInputRef.current) accountInputRef.current.value = "";
@@ -154,18 +143,14 @@ export default function Home() {
 
     if (isFetchingAccounts) return;
 
-    const matchedAccount = accounts.find(
-      (account) => account.accountId === searchParams.accountId
-    );
-
     if (accountInputRef.current) {
-      accountInputRef.current.value = matchedAccount?.accountId ?? "";
+      accountInputRef.current.value = selectedAccount?.accountId ?? "";
     }
 
-    if (!matchedAccount) return;
+    if (!selectedAccount) return;
     if (!searchParams.accountId) return;
 
-    const queryParams = new URLSearchParams();
+    const queryParams = new URLSearchParams(searchParams);
 
     if (searchParams.sinceTransaction)
       queryParams.set("since", searchParams.sinceTransaction);
@@ -174,43 +159,52 @@ export default function Home() {
     if (!ws) {
       open(
         `${webSocketUrl}/accounts/${
-          matchedAccount.accountId
+          selectedAccount.accountId
         }/transactions?${queryParams.toString()}`
       );
       return;
     }
 
-    if (ws?.readyState === ws?.CLOSED) {
+    if (
+      ws?.readyState === ws?.CLOSED &&
+      transactions.length === 0 &&
+      accountChanged.current
+    ) {
+      accountChanged.current = false;
       open(
         `${webSocketUrl}/accounts/${
-          matchedAccount.accountId
+          selectedAccount.accountId
         }/transactions?${queryParams.toString()}`
       );
     }
   }, [
     accounts,
     isFetchingAccounts,
+    selectedAccount,
     open,
-    searchParams.accountId,
-    searchParams.sinceTransaction,
+    searchParams,
+    transactions.length,
     ws,
   ]);
 
-  useEffect(() => {
-    if (isWebsocketConnectionPaused) return;
-    alreadyShownTransactions.current = filteredTransactions ?? [];
-  }, [filteredTransactions, isWebsocketConnectionPaused]);
-
   const handlePauseResumeTransactionListener = () => {
     if (!selectedAccount) return;
+    if (!selectedAccount) return;
 
-    const matchedAccount = accounts.find((account) => {
-      return account.accountId === selectedAccount.accountId;
-    });
+    if (isOpen) {
+      ws?.close(1000, "Connection paused");
+      return;
+    }
 
-    if (!matchedAccount) return;
+    const queryParams = new URLSearchParams();
 
-    setIsWebsocketConnectionPaused((prev) => !prev);
+    queryParams.set("since", transactions[0].transactionId);
+
+    open(
+      `${webSocketUrl}/accounts/${
+        selectedAccount.accountId
+      }/transactions?${queryParams.toString()}`
+    );
   };
 
   if (isFetchingAccounts)
@@ -232,23 +226,25 @@ export default function Home() {
   const handleAccountInputChange: ChangeEventHandler<HTMLSelectElement> = (
     e
   ) => {
+    accountChanged.current = true;
+
     setMessages([]);
     ws?.close(1000, "Remove old connection");
 
-    const matchedAccount = accounts.find((account) => {
+    const selectedAccount = accounts.find((account) => {
       return account.accountId === e.target.value;
     });
 
-    if (!matchedAccount) {
-      router.push(pathName);
+    if (!selectedAccount) {
+      router.push(pathName, { scroll: false });
       return;
     }
 
     const searchParamsNew = new URLSearchParams(searchParams);
 
-    searchParamsNew.set("accountId", matchedAccount.accountId);
+    searchParamsNew.set("accountId", selectedAccount.accountId);
 
-    router.push(`${pathName}?${searchParamsNew.toString()}`);
+    router.push(`${pathName}?${searchParamsNew.toString()}`, { scroll: false });
   };
 
   const handleFilterChange = () => {
@@ -289,12 +285,9 @@ export default function Home() {
                 className="px-10 py-3 rounded bg-gray-800 text-white"
                 onClick={handlePauseResumeTransactionListener}
               >
-                {isWebsocketConnectionPaused || !isOpen ? "Resume" : "Pause"}
+                {isOpen ? "Pause" : "Resume"}
               </Button>
-              <span>
-                Connection Status:{" "}
-                {isWebsocketConnectionPaused || !isOpen ? "Paused" : "Active"}
-              </span>
+              <span>Connection Status: {!isOpen ? "Paused" : "Active"}</span>
             </div>
 
             <table className="w-full max-w-screen-lg mt-4 border border-separate border-spacing-0 border-gray-300 rounded">
